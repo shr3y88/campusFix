@@ -21,18 +21,18 @@ router.get('/', protect, authorize('admin'), async (req, res) => {
   }
 });
 
-// @route   GET /api/users/staff
-// @desc    Get all staff members
+// @route   GET /api/users/teachers
+// @desc    Get all teachers
 // @access  Private (Admin)
-router.get('/staff', protect, authorize('admin'), async (req, res) => {
+router.get('/teachers', protect, authorize('admin'), async (req, res) => {
   try {
-    const staff = await User.find({ role: 'staff' })
+    const teachers = await User.find({ role: 'teacher' })
       .select('-password')
       .sort({ name: 1 });
 
-    res.json(staff);
+    res.json(teachers);
   } catch (error) {
-    console.error('Get staff error:', error);
+    console.error('Get teachers error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

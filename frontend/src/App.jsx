@@ -9,6 +9,7 @@ import ComplaintDetail from './pages/ComplaintDetail';
 import CreateComplaint from './pages/CreateComplaint';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
+import Notices from './pages/Notices';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -33,6 +34,7 @@ function App() {
           <Route path="complaints" element={<Complaints />} />
           <Route path="complaints/:id" element={<ComplaintDetail />} />
           <Route path="complaints/new" element={<CreateComplaint />} />
+          <Route path="notices" element={<Notices />} />
           <Route
             path="admin"
             element={

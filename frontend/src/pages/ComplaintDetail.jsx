@@ -10,15 +10,17 @@ const ComplaintDetail = () => {
   const navigate = useNavigate();
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [staff, setStaff] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState('');
+  const [selectedTeacher, setSelectedTeacher] = useState('');
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replying, setReplying] = useState(false);
 
   useEffect(() => {
     fetchComplaint();
     if (user?.role === 'admin') {
-      fetchStaff();
+      fetchTeachers();
     }
   }, [id]);
 
@@ -34,19 +36,19 @@ const ComplaintDetail = () => {
     }
   };
 
-  const fetchStaff = async () => {
+  const fetchTeachers = async () => {
     try {
-      const response = await api.get('/users/staff');
-      setStaff(response.data);
+      const response = await api.get('/users/teachers');
+      setTeachers(response.data);
     } catch (error) {
-      console.error('Failed to load staff');
+      console.error('Failed to load teachers');
     }
   };
 
   const handleAssign = async () => {
     try {
       await api.put(`/complaints/${id}/assign`, {
-        assignedTo: selectedStaff,
+        assignedTo: selectedTeacher,
       });
       toast.success('Complaint assigned successfully');
       setShowAssignModal(false);
@@ -76,6 +78,26 @@ const ComplaintDetail = () => {
       fetchComplaint();
     } catch (error) {
       toast.error('Failed to update status');
+    }
+  };
+
+  const handleReply = async (e) => {
+    e.preventDefault();
+    if (!replyMessage.trim()) {
+      toast.error('Please enter a reply message');
+      return;
+    }
+
+    setReplying(true);
+    try {
+      await api.post(`/complaints/${id}/reply`, { message: replyMessage });
+      toast.success('Reply added successfully');
+      setReplyMessage('');
+      fetchComplaint();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add reply');
+    } finally {
+      setReplying(false);
     }
   };
 
@@ -237,8 +259,64 @@ const ComplaintDetail = () => {
               </div>
             )}
 
+            {/* Replies Section */}
+            {complaint.replies && complaint.replies.length > 0 && (
+              <div className="mb-6 border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-500 mb-4">
+                  Replies ({complaint.replies.length})
+                </h3>
+                <div className="space-y-4">
+                  {complaint.replies.map((reply, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {reply.repliedBy?.name || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(reply.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                        {reply.repliedBy?.role === 'teacher' && (
+                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                            Teacher
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {reply.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reply Form for Teachers */}
+            {(user?.role === 'teacher' || user?.role === 'admin') && (
+              <div className="border-t border-gray-200 pt-6 mt-6">
+                <h3 className="text-sm font-medium text-gray-500 mb-4">Add Reply</h3>
+                <form onSubmit={handleReply}>
+                  <textarea
+                    value={replyMessage}
+                    onChange={(e) => setReplyMessage(e.target.value)}
+                    placeholder="Type your reply here..."
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm mb-3"
+                    rows={4}
+                  />
+                  <button
+                    type="submit"
+                    disabled={replying || !replyMessage.trim()}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {replying ? 'Sending...' : 'Send Reply'}
+                  </button>
+                </form>
+              </div>
+            )}
+
             {/* Action Buttons */}
-            {(user?.role === 'admin' || user?.role === 'staff') && (
+            {(user?.role === 'admin' || user?.role === 'teacher') && (
               <div className="border-t border-gray-200 pt-6 mt-6">
                 <div className="flex flex-wrap gap-3">
                   {complaint.status === 'pending' && user?.role === 'admin' && (
@@ -246,14 +324,14 @@ const ComplaintDetail = () => {
                       onClick={() => setShowAssignModal(true)}
                       className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
                     >
-                      Assign to Staff
+                      Assign to Teacher
                     </button>
                   )}
                   {complaint.status !== 'resolved' &&
                     complaint.status !== 'closed' &&
                     (user?.role === 'admin' ||
-                      (user?.role === 'staff' &&
-                        complaint.assignedTo?._id === user._id)) && (
+                      user?.role === 'teacher' ||
+                      (complaint.assignedTo?._id === user._id)) && (
                       <button
                         onClick={() => handleStatusUpdate('in-progress')}
                         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
@@ -263,8 +341,8 @@ const ComplaintDetail = () => {
                     )}
                   {complaint.status !== 'resolved' &&
                     (user?.role === 'admin' ||
-                      (user?.role === 'staff' &&
-                        complaint.assignedTo?._id === user._id)) && (
+                      user?.role === 'teacher' ||
+                      (complaint.assignedTo?._id === user._id)) && (
                       <div className="flex-1">
                         <textarea
                           value={resolutionNotes}
@@ -296,14 +374,14 @@ const ComplaintDetail = () => {
               Assign Complaint
             </h3>
             <select
-              value={selectedStaff}
-              onChange={(e) => setSelectedStaff(e.target.value)}
+              value={selectedTeacher}
+              onChange={(e) => setSelectedTeacher(e.target.value)}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm mb-4"
             >
-              <option value="">Select staff member</option>
-              {staff.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name} - {s.department}
+              <option value="">Select teacher</option>
+              {teachers.map((t) => (
+                <option key={t._id} value={t._id}>
+                  {t.name} - {t.department}
                 </option>
               ))}
             </select>
@@ -316,7 +394,7 @@ const ComplaintDetail = () => {
               </button>
               <button
                 onClick={handleAssign}
-                disabled={!selectedStaff}
+                disabled={!selectedTeacher}
                 className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
               >
                 Assign

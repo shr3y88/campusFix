@@ -22,17 +22,23 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['student', 'staff', 'admin'],
+      enum: ['student', 'admin', 'teacher', 'guard'],
       default: 'student',
     },
     studentId: {
       type: String,
       sparse: true,
       unique: true,
+      default: undefined,
     },
     department: {
       type: String,
+      enum: {
+        values: ['CS', 'IT', 'CSIT', 'DS', 'CY', 'Mechanical', 'Civil', 'Sports'],
+        message: 'Invalid department',
+      },
       trim: true,
+      default: undefined,
     },
     phone: {
       type: String,
@@ -43,6 +49,14 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Convert empty studentId to undefined for sparse unique index
+userSchema.pre('save', function (next) {
+  if (this.studentId === '' || this.studentId === null) {
+    this.studentId = undefined;
+  }
+  next();
+});
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {

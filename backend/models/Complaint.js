@@ -22,6 +22,10 @@ const complaintSchema = new mongoose.Schema(
       required: [true, 'Please provide a location'],
       trim: true,
     },
+    department: {
+      type: String,
+      trim: true,
+    },
     priority: {
       type: String,
       enum: ['low', 'medium', 'high', 'urgent'],
@@ -54,6 +58,24 @@ const complaintSchema = new mongoose.Schema(
     resolvedAt: {
       type: Date,
     },
+    replies: [
+      {
+        repliedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        message: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

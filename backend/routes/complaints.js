@@ -8,7 +8,7 @@ const router = express.Router();
 
 // @route   POST /api/complaints
 // @desc    Create a new complaint
-// @access  Private (Student, Staff, Admin)
+// @access  Private (Student, Admin) - Teachers cannot create complaints
 router.post(
   '/',
   protect,
@@ -27,12 +27,22 @@ router.post(
   ],
   async (req, res) => {
     try {
+      // Teachers cannot create complaints
+      if (req.user.role === 'teacher') {
+        return res.status(403).json({ message: 'Teachers cannot file complaints' });
+      }
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { title, description, category, location, priority } = req.body;
+      const { title, description, category, location, priority, department } = req.body;
+
+      // Department is required for students when creating complaints
+      if (req.user.role === 'student' && !department) {
+        return res.status(400).json({ message: 'Department is required when creating a complaint' });
+      }
 
       // Get image paths
       const images = req.files
@@ -44,14 +54,27 @@ router.post(
         description,
         category,
         location,
+        department: department || req.user.department,
         priority: priority || 'medium',
         reportedBy: req.user._id,
         images,
       });
 
       const populatedComplaint = await Complaint.findById(complaint._id)
-        .populate('reportedBy', 'name email role')
-        .populate('assignedTo', 'name email role');
+        .populate('reportedBy', 'name email role department')
+        .populate('assignedTo', 'name email role department');
+
+      // Send notification to teachers in the department
+      if (populatedComplaint.department) {
+        try {
+          const { sendComplaintNotification } = await import('../utils/notifications.js');
+          sendComplaintNotification(populatedComplaint).catch((err) => {
+            console.error('Failed to send notification:', err);
+          });
+        } catch (importError) {
+          console.error('Failed to import notification utility:', importError);
+        }
+      }
 
       res.status(201).json(populatedComplaint);
     } catch (error) {
@@ -81,12 +104,14 @@ router.get('/', protect, async (req, res) => {
     // Role-based filtering
     if (req.user.role === 'student') {
       query.reportedBy = req.user._id;
-    } else if (req.user.role === 'staff') {
-      query.$or = [
-        { assignedTo: req.user._id },
-        { assignedTo: null },
-        { status: 'pending' },
-      ];
+    } else if (req.user.role === 'teacher') {
+      // Teachers can only see complaints from their department
+      if (req.user.department) {
+        query.department = req.user.department;
+      } else {
+        // If teacher has no department, return empty results
+        query.department = null;
+      }
     }
     // Admin can see all
 
@@ -99,8 +124,9 @@ router.get('/', protect, async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const complaints = await Complaint.find(query)
-      .populate('reportedBy', 'name email role studentId')
+      .populate('reportedBy', 'name email role studentId department')
       .populate('assignedTo', 'name email role department')
+      .populate('replies.repliedBy', 'name email role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -125,19 +151,24 @@ router.get('/', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   try {
     const complaint = await Complaint.findById(req.params.id)
-      .populate('reportedBy', 'name email role studentId')
-      .populate('assignedTo', 'name email role department');
+      .populate('reportedBy', 'name email role studentId department')
+      .populate('assignedTo', 'name email role department')
+      .populate('replies.repliedBy', 'name email role');
 
     if (!complaint) {
       return res.status(404).json({ message: 'Complaint not found' });
     }
 
     // Check access
-    if (
-      req.user.role === 'student' &&
-      complaint.reportedBy._id.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'student') {
+      if (complaint.reportedBy._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+    } else if (req.user.role === 'teacher') {
+      // Teachers can only access complaints from their department
+      if (!req.user.department || complaint.department !== req.user.department) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
     }
 
     res.json(complaint);
@@ -192,6 +223,18 @@ router.put(
             delete req.body[key];
           }
         });
+      } else if (req.user.role === 'teacher') {
+        // Teachers can only update complaints from their department
+        if (!req.user.department || complaint.department !== req.user.department) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+        // Teachers cannot update certain fields
+        const restrictedFields = ['reportedBy', 'assignedTo'];
+        Object.keys(req.body).forEach((key) => {
+          if (restrictedFields.includes(key)) {
+            delete req.body[key];
+          }
+        });
       }
 
       // Handle new images
@@ -210,8 +253,9 @@ router.put(
         req.body,
         { new: true, runValidators: true }
       )
-        .populate('reportedBy', 'name email role studentId')
-        .populate('assignedTo', 'name email role department');
+        .populate('reportedBy', 'name email role studentId department')
+        .populate('assignedTo', 'name email role department')
+        .populate('replies.repliedBy', 'name email role');
 
       res.json(updatedComplaint);
     } catch (error) {
@@ -250,13 +294,13 @@ router.delete('/:id', protect, async (req, res) => {
 });
 
 // @route   PUT /api/complaints/:id/assign
-// @desc    Assign complaint to staff
-// @access  Private (Admin, Staff)
+// @desc    Assign complaint to teacher
+// @access  Private (Admin, Teacher)
 router.put(
   '/:id/assign',
   protect,
-  authorize('admin', 'staff'),
-  [body('assignedTo').notEmpty().withMessage('Staff ID is required')],
+  authorize('admin', 'teacher'),
+  [body('assignedTo').notEmpty().withMessage('Teacher ID is required')],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -276,8 +320,9 @@ router.put(
       await complaint.save();
 
       const populatedComplaint = await Complaint.findById(complaint._id)
-        .populate('reportedBy', 'name email role studentId')
-        .populate('assignedTo', 'name email role department');
+        .populate('reportedBy', 'name email role studentId department')
+        .populate('assignedTo', 'name email role department')
+        .populate('replies.repliedBy', 'name email role');
 
       res.json(populatedComplaint);
     } catch (error) {
@@ -289,11 +334,11 @@ router.put(
 
 // @route   PUT /api/complaints/:id/resolve
 // @desc    Resolve complaint
-// @access  Private (Admin, Staff)
+// @access  Private (Admin, Teacher)
 router.put(
   '/:id/resolve',
   protect,
-  authorize('admin', 'staff'),
+  authorize('admin', 'teacher'),
   [body('resolutionNotes').optional().trim()],
   async (req, res) => {
     try {
@@ -303,6 +348,13 @@ router.put(
         return res.status(404).json({ message: 'Complaint not found' });
       }
 
+      // Check access for teachers
+      if (req.user.role === 'teacher') {
+        if (!req.user.department || complaint.department !== req.user.department) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+
       complaint.status = 'resolved';
       complaint.resolutionNotes = req.body.resolutionNotes || '';
       complaint.resolvedAt = new Date();
@@ -310,12 +362,61 @@ router.put(
       await complaint.save();
 
       const populatedComplaint = await Complaint.findById(complaint._id)
-        .populate('reportedBy', 'name email role studentId')
-        .populate('assignedTo', 'name email role department');
+        .populate('reportedBy', 'name email role studentId department')
+        .populate('assignedTo', 'name email role department')
+        .populate('replies.repliedBy', 'name email role');
 
       res.json(populatedComplaint);
     } catch (error) {
       console.error('Resolve complaint error:', error);
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  }
+);
+
+// @route   POST /api/complaints/:id/reply
+// @desc    Add a reply to a complaint (Teachers can reply)
+// @access  Private (Teacher, Admin)
+router.post(
+  '/:id/reply',
+  protect,
+  authorize('teacher', 'admin'),
+  [body('message').trim().notEmpty().withMessage('Message is required')],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const complaint = await Complaint.findById(req.params.id);
+
+      if (!complaint) {
+        return res.status(404).json({ message: 'Complaint not found' });
+      }
+
+      // Check access for teachers
+      if (req.user.role === 'teacher') {
+        if (!req.user.department || complaint.department !== req.user.department) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+
+      complaint.replies.push({
+        repliedBy: req.user._id,
+        message: req.body.message,
+      });
+
+      await complaint.save();
+
+      const populatedComplaint = await Complaint.findById(complaint._id)
+        .populate('reportedBy', 'name email role studentId department')
+        .populate('assignedTo', 'name email role department')
+        .populate('replies.repliedBy', 'name email role');
+
+      res.json(populatedComplaint);
+    } catch (error) {
+      console.error('Reply to complaint error:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   }

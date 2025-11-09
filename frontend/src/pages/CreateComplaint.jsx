@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../context/AuthContext';
@@ -7,6 +7,14 @@ import toast from 'react-hot-toast';
 const CreateComplaint = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Teachers cannot create complaints
+  useEffect(() => {
+    if (user?.role === 'teacher') {
+      toast.error('Teachers cannot file complaints');
+      navigate('/complaints');
+    }
+  }, [user, navigate]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -14,6 +22,7 @@ const CreateComplaint = () => {
     category: 'maintenance',
     location: '',
     priority: 'medium',
+    department: user?.department || '',
   });
   const [images, setImages] = useState([]);
 
@@ -48,6 +57,9 @@ const CreateComplaint = () => {
       formDataToSend.append('category', formData.category);
       formDataToSend.append('location', formData.location);
       formDataToSend.append('priority', formData.priority);
+      if (formData.department) {
+        formDataToSend.append('department', formData.department);
+      }
 
       images.forEach((image) => {
         formDataToSend.append('images', image);
@@ -182,6 +194,55 @@ const CreateComplaint = () => {
                 placeholder="e.g., Building A, Room 101"
               />
             </div>
+
+            {user?.role === 'student' && (
+              <div>
+                <label
+                  htmlFor="department"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Department *
+                </label>
+                <select
+                  name="department"
+                  id="department"
+                  required
+                  value={formData.department}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                >
+                  <option value="">Select Department</option>
+                  <option value="CS">CS</option>
+                  <option value="IT">IT</option>
+                  <option value="CSIT">CSIT</option>
+                  <option value="DS">DS</option>
+                  <option value="CY">CY</option>
+                  <option value="Mechanical">Mechanical</option>
+                  <option value="Civil">Civil</option>
+                  <option value="Sports">Sports</option>
+                </select>
+              </div>
+            )}
+            {user?.department && user?.role !== 'student' && (
+              <div>
+                <label
+                  htmlFor="department"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Department
+                </label>
+                <input
+                  type="text"
+                  name="department"
+                  id="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm bg-gray-50"
+                  placeholder="Your department"
+                  readOnly
+                />
+              </div>
+            )}
 
             <div>
               <label

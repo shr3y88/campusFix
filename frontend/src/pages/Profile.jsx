@@ -138,7 +138,7 @@ const Profile = () => {
                 </div>
               )}
 
-              {user.role === 'staff' && (
+              {user.role === 'teacher' && (
                 <div>
                   <label
                     htmlFor="department"

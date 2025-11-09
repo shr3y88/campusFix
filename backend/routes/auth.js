@@ -19,8 +19,20 @@ router.post(
       .withMessage('Password must be at least 6 characters'),
     body('role')
       .optional()
-      .isIn(['student', 'staff', 'admin'])
+      .isIn(['student', 'admin', 'teacher', 'guard'])
       .withMessage('Invalid role'),
+    body('department')
+      .optional()
+      .custom((value) => {
+        // Allow empty string or undefined
+        if (!value || value.trim() === '') {
+          return true;
+        }
+        // Validate against enum if provided
+        const validDepartments = ['CS', 'IT', 'CSIT', 'DS', 'CY', 'Mechanical', 'Civil', 'Sports'];
+        return validDepartments.includes(value);
+      })
+      .withMessage('Invalid department'),
   ],
   async (req, res) => {
     try {
@@ -38,9 +50,10 @@ router.post(
         return res.status(400).json({ message: 'User already exists' });
       }
 
-      // Check if studentId already exists (if provided)
-      if (studentId) {
-        const studentIdExists = await User.findOne({ studentId });
+      // Check if studentId already exists (if provided and not empty)
+      const trimmedStudentId = studentId?.trim();
+      if (trimmedStudentId) {
+        const studentIdExists = await User.findOne({ studentId: trimmedStudentId });
         if (studentIdExists) {
           return res
             .status(400)
@@ -48,16 +61,32 @@ router.post(
         }
       }
 
-      // Create user
-      const user = await User.create({
+      // Department is required for teachers
+      if (role === 'teacher' && !department) {
+        return res.status(400).json({ message: 'Department is required for teachers' });
+      }
+
+      // Create user - set studentId and department to undefined if empty
+      const userData = {
         name,
         email,
         password,
         role: role || 'student',
-        studentId,
-        department,
         phone,
-      });
+      };
+
+      // Only include studentId if it's not empty
+      if (trimmedStudentId) {
+        userData.studentId = trimmedStudentId;
+      }
+
+      // Only include department if it's not empty
+      const trimmedDepartment = department?.trim();
+      if (trimmedDepartment) {
+        userData.department = trimmedDepartment;
+      }
+
+      const user = await User.create(userData);
 
       res.status(201).json({
         _id: user._id,

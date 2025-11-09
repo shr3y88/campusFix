@@ -8,11 +8,22 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import complaintRoutes from './routes/complaints.js';
 import userRoutes from './routes/users.js';
+import noticeRoutes from './routes/notices.js';
 
-dotenv.config();
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+dotenv.config()
+console.log("🧭 Current directory:", __dirname);
+console.log("🧩 Looking for .env at:", path.join(__dirname, ".env"));
+console.log("🔍 ENV test →", {
+  EMAIL_SERVICE: process.env.EMAIL_SERVICE,
+  EMAIL_USER: process.env.EMAIL_USER,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+});
+
+
 
 const app = express();
 
@@ -28,6 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/notices', noticeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

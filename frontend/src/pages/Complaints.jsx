@@ -79,12 +79,14 @@ const Complaints = () => {
     <div className="px-4 py-6 sm:px-0">
       <div className="mb-6 flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Complaints</h1>
-        <Link
-          to="/complaints/new"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
-        >
-          New Complaint
-        </Link>
+        {user?.role !== 'teacher' && (
+          <Link
+            to="/complaints/new"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
+          >
+            New Complaint
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -152,12 +154,14 @@ const Complaints = () => {
       ) : complaints.length === 0 ? (
         <div className="bg-white shadow rounded-lg p-12 text-center">
           <p className="text-gray-500 mb-4">No complaints found</p>
-          <Link
-            to="/complaints/new"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-primary-100 hover:bg-primary-200"
-          >
-            Create a new complaint
-          </Link>
+          {user?.role !== 'teacher' && (
+            <Link
+              to="/complaints/new"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-primary-100 hover:bg-primary-200"
+            >
+              Create a new complaint
+            </Link>
+          )}
         </div>
       ) : (
         <div className="bg-white shadow rounded-lg overflow-hidden">

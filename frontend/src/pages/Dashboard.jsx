@@ -148,24 +148,32 @@ const Dashboard = () => {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Recent Complaints</h2>
-            <Link
-              to="/complaints/new"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
-            >
-              New Complaint
-            </Link>
+            <h2 className="text-lg font-medium text-gray-900">
+              {user?.role === 'teacher' ? 'Department Complaints' : 'Recent Complaints'}
+            </h2>
+            {user?.role !== 'teacher' && (
+              <Link
+                to="/complaints/new"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700"
+              >
+                New Complaint
+              </Link>
+            )}
           </div>
 
           {recentComplaints.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">No complaints yet</p>
-              <Link
-                to="/complaints/new"
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-primary-100 hover:bg-primary-200"
-              >
-                Create your first complaint
-              </Link>
+              <p className="text-gray-500">
+                {user?.role === 'teacher' ? 'No complaints in your department yet' : 'No complaints yet'}
+              </p>
+              {user?.role !== 'teacher' && (
+                <Link
+                  to="/complaints/new"
+                  className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-600 bg-primary-100 hover:bg-primary-200"
+                >
+                  Create your first complaint
+                </Link>
+              )}
             </div>
           ) : (
             <div className="overflow-hidden">
