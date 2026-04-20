@@ -16,6 +16,14 @@ const ComplaintDetail = () => {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [replyMessage, setReplyMessage] = useState('');
   const [replying, setReplying] = useState(false);
+  const [generatingReply, setGeneratingReply] = useState(false);
+  const [generatingResolutionDraft, setGeneratingResolutionDraft] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopening, setReopening] = useState(false);
+  const [feedback, setFeedback] = useState({ rating: 5, comment: '' });
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [flagReason, setFlagReason] = useState('');
+  const [flaggingStudent, setFlaggingStudent] = useState(false);
 
   useEffect(() => {
     fetchComplaint();
@@ -98,6 +106,94 @@ const ComplaintDetail = () => {
       toast.error(error.response?.data?.message || 'Failed to add reply');
     } finally {
       setReplying(false);
+    }
+  };
+
+  const handleGenerateReplyDraft = async () => {
+    setGeneratingReply(true);
+    try {
+      const response = await api.get(`/complaints/${id}/ai-reply`);
+      if (response.data?.draft) {
+        setReplyMessage(response.data.draft);
+        toast.success('AI draft generated');
+      } else {
+        toast.error('No AI draft returned');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to generate AI draft');
+    } finally {
+      setGeneratingReply(false);
+    }
+  };
+
+  const handleGenerateResolutionDraft = async () => {
+    setGeneratingResolutionDraft(true);
+    try {
+      const response = await api.get(`/complaints/${id}/ai-resolution-notes`);
+      if (response.data?.draft) {
+        setResolutionNotes(response.data.draft);
+        toast.success('AI resolution notes draft generated');
+      } else {
+        toast.error('No AI resolution draft returned');
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || 'Failed to generate AI resolution notes'
+      );
+    } finally {
+      setGeneratingResolutionDraft(false);
+    }
+  };
+
+  const handleReopen = async () => {
+    setReopening(true);
+    try {
+      await api.put(`/complaints/${id}/reopen`, { reason: reopenReason });
+      toast.success('Complaint reopened');
+      setReopenReason('');
+      fetchComplaint();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to reopen complaint');
+    } finally {
+      setReopening(false);
+    }
+  };
+
+  const handleSubmitFeedback = async (e) => {
+    e.preventDefault();
+    setSubmittingFeedback(true);
+    try {
+      await api.post(`/complaints/${id}/feedback`, {
+        rating: Number(feedback.rating),
+        comment: feedback.comment,
+      });
+      toast.success('Feedback submitted');
+      fetchComplaint();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to submit feedback');
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
+  const handleFlagStudent = async () => {
+    if (!flagReason.trim()) {
+      toast.error('Please provide a reason before flagging');
+      return;
+    }
+
+    setFlaggingStudent(true);
+    try {
+      const response = await api.put(`/complaints/${id}/flag-student`, {
+        reason: flagReason,
+      });
+      toast.success(response.data.message || 'Student flagged');
+      setFlagReason('');
+      fetchComplaint();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to flag student');
+    } finally {
+      setFlaggingStudent(false);
     }
   };
 
@@ -209,6 +305,14 @@ const ComplaintDetail = () => {
                   {new Date(complaint.createdAt).toLocaleString()}
                 </p>
               </div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">SLA Due</h3>
+                <p className="mt-1 text-sm text-gray-900">
+                  {complaint.dueAt
+                    ? new Date(complaint.dueAt).toLocaleString()
+                    : 'Not set'}
+                </p>
+              </div>
               {complaint.resolvedAt && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">
@@ -229,6 +333,160 @@ const ComplaintDetail = () => {
                 {complaint.description}
               </p>
             </div>
+
+            {complaint.reportedBy?.role === 'student' && (
+              <div
+                className={`mb-6 rounded-lg p-4 border ${
+                  complaint.reportedBy?.isRedZone
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-orange-200 bg-orange-50'
+                }`}
+              >
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                  Student Trust Status
+                </h3>
+                <p className="text-sm text-gray-800">
+                  Scholar No: {complaint.reportedBy?.studentId || 'N/A'} | Flags:{' '}
+                  {complaint.reportedBy?.fraudFlags || 0}/3
+                </p>
+                {complaint.reportedBy?.isRedZone ? (
+                  <p className="text-sm font-medium text-red-700 mt-1">
+                    Student is in RED ZONE. Teacher/Admin can take disciplinary action.
+                  </p>
+                ) : (
+                  (user?.role === 'teacher' || user?.role === 'admin') && (
+                    <div className="mt-3">
+                      <textarea
+                        value={flagReason}
+                        onChange={(e) => setFlagReason(e.target.value)}
+                        placeholder="Reason for red-flagging this student..."
+                        className="block w-full px-3 py-2 border border-orange-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                        rows={2}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleFlagStudent}
+                        disabled={flaggingStudent || (complaint.reportedBy?.fraudFlags || 0) >= 3}
+                        className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {flaggingStudent ? 'Flagging...' : 'Red Flag Student'}
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {complaint.isPotentialSpam && (
+              <div className="mb-6 border border-red-200 bg-red-50 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-red-900 mb-1">
+                  Potential Fraud/Spam Flag
+                </h3>
+                <p className="text-sm text-red-800">
+                  Score: {complaint.spamScore || 0}% - {complaint.spamReason}
+                </p>
+              </div>
+            )}
+
+            {complaint.activityLog && complaint.activityLog.length > 0 && (
+              <div className="mb-6 border-t border-gray-200 pt-6">
+                <h3 className="text-sm font-medium text-gray-500 mb-4">Activity Timeline</h3>
+                <div className="space-y-3">
+                  {[...complaint.activityLog]
+                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                    .map((entry, index) => (
+                      <div key={index} className="bg-gray-50 rounded-md p-3">
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {entry.action.replaceAll('-', ' ')}
+                        </p>
+                        <p className="text-xs text-gray-600">
+                          {entry.actor?.name || 'System'} -{' '}
+                          {new Date(entry.createdAt).toLocaleString()}
+                        </p>
+                        {entry.note && (
+                          <p className="text-sm text-gray-700 mt-1">{entry.note}</p>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {(complaint.status === 'resolved' || complaint.status === 'closed') &&
+              (user?._id === complaint.reportedBy?._id || user?.role === 'admin') && (
+                <div className="mb-6 border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-yellow-900 mb-2">
+                    Still facing issue?
+                  </h3>
+                  <textarea
+                    value={reopenReason}
+                    onChange={(e) => setReopenReason(e.target.value)}
+                    placeholder="Reason for reopening..."
+                    className="block w-full px-3 py-2 border border-yellow-300 rounded-md shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-sm"
+                    rows={2}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleReopen}
+                    disabled={reopening}
+                    className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    {reopening ? 'Reopening...' : 'Reopen Complaint'}
+                  </button>
+                </div>
+              )}
+
+            {(complaint.status === 'resolved' || complaint.status === 'closed') &&
+              user?._id === complaint.reportedBy?._id && (
+                <div className="mb-6 border border-indigo-200 bg-indigo-50 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-indigo-900 mb-2">
+                    Resolution Feedback
+                  </h3>
+                  {complaint.feedback?.rating ? (
+                    <p className="text-sm text-indigo-900">
+                      You rated this {complaint.feedback.rating}/5
+                      {complaint.feedback.comment
+                        ? ` - ${complaint.feedback.comment}`
+                        : ''}
+                    </p>
+                  ) : (
+                    <form onSubmit={handleSubmitFeedback}>
+                      <div className="mb-2">
+                        <label className="text-sm text-indigo-900">Rating</label>
+                        <select
+                          value={feedback.rating}
+                          onChange={(e) =>
+                            setFeedback((prev) => ({ ...prev, rating: e.target.value }))
+                          }
+                          className="mt-1 block w-full px-3 py-2 border border-indigo-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        >
+                          <option value={5}>5 - Excellent</option>
+                          <option value={4}>4 - Good</option>
+                          <option value={3}>3 - Average</option>
+                          <option value={2}>2 - Poor</option>
+                          <option value={1}>1 - Very poor</option>
+                        </select>
+                      </div>
+                      <textarea
+                        value={feedback.comment}
+                        onChange={(e) =>
+                          setFeedback((prev) => ({ ...prev, comment: e.target.value }))
+                        }
+                        placeholder="Optional comment..."
+                        className="block w-full px-3 py-2 border border-indigo-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        rows={2}
+                      />
+                      <button
+                        type="submit"
+                        disabled={submittingFeedback}
+                        className="mt-2 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        {submittingFeedback ? 'Submitting...' : 'Submit Feedback'}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
 
             {complaint.images && complaint.images.length > 0 && (
               <div className="mb-6">
@@ -297,6 +555,16 @@ const ComplaintDetail = () => {
               <div className="border-t border-gray-200 pt-6 mt-6">
                 <h3 className="text-sm font-medium text-gray-500 mb-4">Add Reply</h3>
                 <form onSubmit={handleReply}>
+                  <div className="mb-3">
+                    <button
+                      type="button"
+                      onClick={handleGenerateReplyDraft}
+                      disabled={generatingReply}
+                      className="inline-flex items-center px-3 py-2 border border-primary-300 text-sm font-medium rounded-md text-primary-700 bg-primary-50 hover:bg-primary-100 disabled:opacity-50"
+                    >
+                      {generatingReply ? 'Generating draft...' : 'Generate AI Reply Draft'}
+                    </button>
+                  </div>
                   <textarea
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
@@ -344,6 +612,16 @@ const ComplaintDetail = () => {
                       user?.role === 'teacher' ||
                       (complaint.assignedTo?._id === user._id)) && (
                       <div className="flex-1">
+                        <button
+                          type="button"
+                          onClick={handleGenerateResolutionDraft}
+                          disabled={generatingResolutionDraft}
+                          className="mb-2 inline-flex items-center px-3 py-2 border border-green-300 text-sm font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50"
+                        >
+                          {generatingResolutionDraft
+                            ? 'Generating resolution draft...'
+                            : 'Generate AI Resolution Notes Draft'}
+                        </button>
                         <textarea
                           value={resolutionNotes}
                           onChange={(e) => setResolutionNotes(e.target.value)}

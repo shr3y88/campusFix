@@ -12,6 +12,8 @@ const Complaints = () => {
     status: '',
     category: '',
     priority: '',
+    overdue: '',
+    isPotentialSpam: '',
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -91,7 +93,7 @@ const Complaints = () => {
 
       {/* Filters */}
       <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Status
@@ -143,6 +145,36 @@ const Complaints = () => {
               <option value="urgent">Urgent</option>
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              SLA
+            </label>
+            <select
+              value={filters.overdue}
+              onChange={(e) => handleFilterChange('overdue', e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            >
+              <option value="">All</option>
+              <option value="true">Overdue</option>
+            </select>
+          </div>
+          {user?.role === 'admin' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fraud/Spam
+              </label>
+              <select
+                value={filters.isPotentialSpam}
+                onChange={(e) =>
+                  handleFilterChange('isPotentialSpam', e.target.value)
+                }
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+              >
+                <option value="">All</option>
+                <option value="true">Flagged only</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -185,6 +217,19 @@ const Complaints = () => {
                         >
                           {complaint.priority}
                         </span>
+                        {complaint.isPotentialSpam && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Flagged
+                          </span>
+                        )}
+                        {complaint.dueAt &&
+                          complaint.status !== 'resolved' &&
+                          complaint.status !== 'closed' &&
+                          new Date(complaint.dueAt) < new Date() && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                              Overdue
+                            </span>
+                          )}
                       </div>
                       <p className="mt-1 text-sm text-gray-500 truncate">
                         {complaint.description}
