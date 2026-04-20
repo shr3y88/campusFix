@@ -32,6 +32,10 @@ const Register = () => {
       toast.error('Passwords do not match');
       return;
     }
+    if (formData.role === 'student' && !formData.studentId.trim()) {
+      toast.error('Scholar number is required for students');
+      return;
+    }
 
     setLoading(true);
 
@@ -115,16 +119,22 @@ const Register = () => {
             {formData.role === 'student' && (
               <div>
                 <label htmlFor="studentId" className="block text-sm font-medium text-gray-700">
-                  Student ID
+                  Scholar Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="studentId"
                   name="studentId"
                   type="text"
+                  required
+                  pattern="[A-Za-z0-9]{6,20}"
+                  title="Scholar number must be 6-20 letters/numbers"
                   className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                   value={formData.studentId}
                   onChange={handleChange}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Enter valid scholar number (6-20 letters/numbers). This is verified and unique.
+                </p>
               </div>
             )}
             {formData.role === 'teacher' && (

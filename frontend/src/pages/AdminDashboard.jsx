@@ -143,6 +143,52 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="p-5">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="text-2xl font-bold text-red-600">
+                  {stats.statusCounts.overdue || 0}
+                </div>
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Overdue (SLA)
+                  </dt>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white shadow rounded-lg p-4">
+          <p className="text-xs text-gray-500">Avg Resolution Time</p>
+          <p className="text-xl font-bold text-gray-900">
+            {stats.performance?.avgResolutionHours || 0}h
+          </p>
+        </div>
+        <div className="bg-white shadow rounded-lg p-4">
+          <p className="text-xs text-gray-500">Reopen Rate</p>
+          <p className="text-xl font-bold text-gray-900">
+            {stats.performance?.reopenRate || 0}%
+          </p>
+        </div>
+        <div className="bg-white shadow rounded-lg p-4">
+          <p className="text-xs text-gray-500">Avg Feedback</p>
+          <p className="text-xl font-bold text-gray-900">
+            {stats.performance?.avgFeedbackRating || 0}/5
+          </p>
+        </div>
+        <div className="bg-white shadow rounded-lg p-4">
+          <p className="text-xs text-gray-500">Flagged Spam</p>
+          <p className="text-xl font-bold text-gray-900">
+            {stats.performance?.flaggedSpam || 0}
+          </p>
+        </div>
       </div>
 
       {/* Charts */}
